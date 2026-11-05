@@ -15,7 +15,7 @@ jobs:
         with:
           # Tells the builder your HTML file is right in the main folder
           app_path: './' 
-          app_name: 'Beat-Rush'
+          app_name: 'Beat Rush'
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
