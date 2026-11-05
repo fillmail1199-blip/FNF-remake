@@ -13,9 +13,10 @@ jobs:
       - name: Compile HTML to APK
         uses: praveshagrawal/HTML-to-APK@main
         with:
-          # Tells the builder your HTML file is right in the main folder
+          # Sucht nach der index.html im Hauptordner
           app_path: './' 
-          app_name: 'Beat Rush'
+          # So heißt die App später auf deinem Smartphone-Bildschirm
+          app_name: 'Beat-Rush'
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
