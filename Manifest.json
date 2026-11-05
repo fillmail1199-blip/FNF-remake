@@ -1,0 +1,9 @@
+{
+  "name": "Beat Rush",
+  "short_name": "Beat Rush",
+  "start_url": "./Beat Rush.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape"
+}
