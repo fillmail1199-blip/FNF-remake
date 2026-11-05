@@ -1,24 +1,24 @@
-name: Generate Native App
+name: Generate Native APK
 on:
   push:
-    branches: [ main, game ]
+    branches: [ main ]
 
 jobs:
-  build:
+  html-to-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Game Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Standalone Android Package
-        uses: darkshredder/web-to-app-action@main
+      - name: Compile HTML to APK
+        uses: praveshagrawal/HTML-to-APK@main
         with:
-          build-folder-path: "./"
-          app-name: "Beat-Rush"
-          output-folder-path: "output/"
+          # Tells the builder your HTML file is right in the main folder
+          app_path: './' 
+          app_name: 'Beat-Rush'
 
-      - name: Export Ready APK File
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
           name: Beat-Rush-Installer
-          path: output/
+          path: ./*.apk
