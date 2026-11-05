@@ -1,25 +1,46 @@
-name: Generate Standalone APK
+name: Generate Native APK
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Codebase
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Compile to Android Package
-        uses: jonaswinkler/simple-apk-build@v1
+      - name: Setup Java System
+        uses: actions/setup-java@v4
         with:
-          # Targets your main front-page folder directory
-          source-dir: '.'
-          app-name: 'Beat-Rush'
-          package-id: 'com.beatrush.game'
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Export Ready APK File
+      - name: Setup Node Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Compile HTML to Native App via Cordova
+        run: |
+          # Installs the official mobile app compiler wrapper engine
+          npm install -g cordova
+          
+          # Creates a real Android environment skeleton structure
+          cordova create beatrush com.beatrush.game BeatRush
+          cd beatrush
+          
+          # Moves your game's HTML, JSON, and layout configurations into the build core
+          rm -rf www/*
+          cp -r ../* www/ || true
+          rm -rf www/.git www/.github www/beatrush
+          
+          # Compiles the actual binary package
+          cordova platform add android
+          cordova build android --debug
+
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: Beat-Rush-Installer
-          path: ./*.apk
+          name: Beat-Rush-APK
+          path: beatrush/platforms/android/app/build/outputs/apk/debug/app-debug.apk
