@@ -25,7 +25,6 @@ jobs:
       - name: Setup Android SDK (Fix)
         uses: android-actions/setup-android@v3
         with:
-          # This is the crucial fix: skip installing the removed 'tools' package
           packages: ''
 
       - name: Install Cordova
@@ -42,9 +41,12 @@ jobs:
       - name: Add Android Platform
         run: |
           cd beatrush
-          cordova platform add android@12 # Using v12 for better compatibility
+          cordova platform add android@12
 
       - name: Build APK
+        env:
+          # Force Gradle 7.6 (the exact version Cordova Android 12 requires)
+          CORDOVA_ANDROID_GRADLE_DISTRIBUTION_URL: 'https://services.gradle.org/distributions/gradle-7.6-all.zip'
         run: |
           cd beatrush
           cordova build android
