@@ -1,25 +1,23 @@
-name: Generate Native APK
-
+name: Build APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:      # lets you trigger it manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Node 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -27,71 +25,29 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Cordova CLI
-        run: npm install -g cordova@12
+      - name: Install Cordova
+        run: npm install -g cordova
 
-      - name: Create Cordova project
+      - name: Create Cordova Project
         run: cordova create beatrush com.beatrush.game BeatRush
 
-      - name: Apply Cordova config (optional — uses defaults if absent)
+      - name: Copy Game Files
         run: |
-          if [ -f cordova-config.xml ]; then
-            cp cordova-config.xml beatrush/config.xml
-            echo "Applied custom cordova-config.xml"
-          else
-            echo "No cordova-config.xml — using Cordova defaults"
-            # Default config.xml already has <content src="index.html" />, so this works.
-            # Add landscape + fullscreen via sed as a sane default.
-            cd beatrush
-            sed -i 's#</widget>#    <preference name="Orientation" value="landscape" />\n    <preference name="Fullscreen" value="true" />\n    <preference name="BackgroundColor" value="0xff150d2b" />\n</widget>#' config.xml
-          fi
+          cp index.html beatrush/www/
+          cp manifest.json beatrush/www/
 
-      - name: Copy game files into Cordova www
-        run: |
-          rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='node_modules' \
-            --exclude='beatrush' \
-            --exclude='cordova-config.xml' \
-            --exclude='*.yml' \
-            ./ beatrush/www/
-
-          echo "--- www/ contents ---"
-          ls -la beatrush/www/
-
-          if [ ! -f beatrush/www/index.html ]; then
-            echo "::error::index.html is missing from beatrush/www/. Check that it's in your repo root."
-            exit 1
-          fi
-
-      - name: Add Android platform
-        run: cd beatrush && cordova platform add android
-
-      - name: Add optional plugins (non-fatal)
+      - name: Add Android Platform
         run: |
           cd beatrush
-          cordova plugin add cordova-plugin-file || echo "::warning::cordova-plugin-file failed — save-to-file will be limited"
-          cordova plugin add cordova-plugin-x-socialsharing || echo "::warning::socialsharing failed — share sheet disabled"
+          cordova platform add android
 
-      - name: Build debug APK
-        run: cd beatrush && cordova build android --debug
-
-      - name: Locate APK
-        id: find_apk
+      - name: Build APK
         run: |
-          APK=$(find beatrush/platforms/android -name '*.apk' -type f | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "::error::No APK produced"
-            find beatrush/platforms/android -name '*.apk' -o -name '*.aab' || true
-            exit 1
-          fi
-          echo "Found APK: $APK"
-          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
+          cd beatrush
+          cordova build android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BeatRush-debug-apk
-          path: ${{ steps.find_apk.outputs.apk_path }}
-          if-no-files-found: error
+          name: BeatRush-APK
+          path: beatrush/platforms/android/app/build/outputs/apk/debug/*.apk
