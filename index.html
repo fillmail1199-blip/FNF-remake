@@ -81,13 +81,12 @@ button.on{background:var(--l2);color:#150d2b;border-color:var(--l2)}
   </div>
 
   <div class="card" style="--c:var(--l3)">
-    <h2>Add songs</h2>
-    <label class="file search">🔍 Search folder (adds every song it finds)<input type="file" webkitdirectory multiple id="folderIn"></label>
-    <div id="libMsg" class="asset-status">Pick your mod folder. It looks for chart .json files and the song folders with Inst and Voices, then adds all of them below.</div>
+  <h2>Add songs</h2>
+  <label class="file search">🔍 Search folder / Select files<input type="file" webkitdirectory multiple id="folderIn"></label>
+  <button class="alt" id="fileBtn" style="margin-top:4px">📁 Or select .json + audio files directly</button>
+  <input type="file" id="fileInDirect" multiple accept=".json,audio/*" style="display:none">
+  <div id="libMsg" class="asset-status">Pick your mod folder or select your chart (.json) and audio files together.</div>
   </div>
-  <div id="lib" style="display:flex;flex-direction:column;gap:14px;align-items:center;width:100%"></div>
-  <p style="font-size:13px">Keyboard: D F J K or arrow keys. Esc or P pauses. Audio starts after you tap Play. Your songs, charts, settings, best scores and custom assets are saved on this phone.</p>
-</div>
 
 <div class="screen hide" id="end">
   <div class="big" id="endTitle"></div>
