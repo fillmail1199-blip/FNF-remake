@@ -10,40 +10,45 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java System
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Node Environment
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Compile HTML to Native App via Cordova
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK with Cordova
         run: |
-          npm install -g cordova
+          npm install -g cordova@12
           cordova create beatrush com.beatrush.game BeatRush
           cd beatrush
-          
+
+          # Copy only tracked files (avoids node_modules, .git, etc.)
           rm -rf www/*
-          cp -r ../* www/ || true
-          rm -rf www/.git www/.github www/beatrush
-          
+          git -C .. ls-files -z | while IFS= read -r -d '' f; do
+            mkdir -p "www/$(dirname "$f")"
+            cp "../$f" "www/$f"
+          done
+          rm -rf www/.github www/beatrush
+
+          # Add Android platform
           cordova platform add android
-          
-          # Add storage permissions and file-chooser support for Android WebView
-          cordova plugin add cordova-plugin-file
-          cordova plugin add cordova-plugin-chooser
-          
-          # Inject storage permissions into AndroidManifest.xml
-          sed -i 's/<\/manifest>/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/><uses-permission android:name="android.permission.READ_MEDIA_AUDIO"\/><uses-permission android:name="android.permission.READ_MEDIA_IMAGES"\/><\/manifest>/' platforms/android/app/src/main/AndroidManifest.xml
-          
+
+          # Add the directory-picker plugin (SAF)
+          cordova plugin add @makiwin/cordova-plugin-saf-mediastore
+
+          # Build the debug APK
           cordova build android --debug
 
-      - name: Upload Finished APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Beat-Rush-APK
-          path: beatrush/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: beatrush-apk
+          path: beatrush/platforms/android/app/build/outputs/apk/**/*.apk
