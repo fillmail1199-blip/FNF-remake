@@ -1,24 +1,24 @@
-name: Generate Native APK
+name: Generate Standalone APK
 on:
   push:
     branches: [ main ]
 
 jobs:
-  html-to-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Fetch Codebase
         uses: actions/checkout@v4
 
-      - name: Compile HTML to APK
-        uses: praveshagrawal/HTML-to-APK@main
+      - name: Compile to Android Package
+        uses: jonaswinkler/simple-apk-build@v1
         with:
-          # Sucht nach der index.html im Hauptordner
-          app_path: './' 
-          # So heißt die App später auf deinem Smartphone-Bildschirm
-          app_name: 'Beat-Rush'
+          # Targets your main front-page folder directory
+          source-dir: '.'
+          app-name: 'Beat-Rush'
+          package-id: 'com.beatrush.game'
 
-      - name: Upload Finished APK
+      - name: Export Ready APK File
         uses: actions/upload-artifact@v4
         with:
           name: Beat-Rush-Installer
