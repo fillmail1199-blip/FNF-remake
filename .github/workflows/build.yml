@@ -1,0 +1,24 @@
+name: Generate Native App
+on:
+  push:
+    branches: [ main, game ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Game Code
+        uses: actions/checkout@v4
+
+      - name: Build Standalone Android Package
+        uses: darkshredder/web-to-app-action@main
+        with:
+          build-folder-path: "./"
+          app-name: "Beat-Rush"
+          output-folder-path: "output/"
+
+      - name: Export Ready APK File
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beat-Rush-Installer
+          path: output/
