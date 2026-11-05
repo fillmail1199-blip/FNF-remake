@@ -23,20 +23,23 @@ jobs:
 
       - name: Compile HTML to Native App via Cordova
         run: |
-          # Installs the official mobile app compiler wrapper engine
           npm install -g cordova
-          
-          # Creates a real Android environment skeleton structure
           cordova create beatrush com.beatrush.game BeatRush
           cd beatrush
           
-          # Moves your game's HTML, JSON, and layout configurations into the build core
           rm -rf www/*
           cp -r ../* www/ || true
           rm -rf www/.git www/.github www/beatrush
           
-          # Compiles the actual binary package
           cordova platform add android
+          
+          # Add storage permissions and file-chooser support for Android WebView
+          cordova plugin add cordova-plugin-file
+          cordova plugin add cordova-plugin-chooser
+          
+          # Inject storage permissions into AndroidManifest.xml
+          sed -i 's/<\/manifest>/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/><uses-permission android:name="android.permission.READ_MEDIA_AUDIO"\/><uses-permission android:name="android.permission.READ_MEDIA_IMAGES"\/><\/manifest>/' platforms/android/app/src/main/AndroidManifest.xml
+          
           cordova build android --debug
 
       - name: Upload Finished APK
