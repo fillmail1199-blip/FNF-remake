@@ -22,8 +22,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK (Fix)
         uses: android-actions/setup-android@v3
+        with:
+          # This is the crucial fix: skip installing the removed 'tools' package
+          packages: ''
 
       - name: Install Cordova
         run: npm install -g cordova
@@ -39,7 +42,7 @@ jobs:
       - name: Add Android Platform
         run: |
           cd beatrush
-          cordova platform add android
+          cordova platform add android@12 # Using v12 for better compatibility
 
       - name: Build APK
         run: |
