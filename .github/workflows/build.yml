@@ -1,4 +1,4 @@
-name: Generate Native APK
+name: Generate Native APK 
 on:
   push:
     branches: [ main ]
