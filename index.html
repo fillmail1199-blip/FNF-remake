@@ -110,6 +110,26 @@ button.on{background:var(--l2);color:#150d2b;border-color:var(--l2)}
 
 <script>
 (()=>{
+
+// ── APK FIX: roundRect polyfill for WebView < Chromium 99 ──
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (typeof r === 'number') r = {tl:r, tr:r, br:r, bl:r};
+    else if (Array.isArray(r)) r = {tl:r[0], tr:r[1]||r[0], br:r[2]||r[0], bl:r[3]||r[1]||r[0]};
+    this.moveTo(x + r.tl, y);
+    this.lineTo(x + w - r.tr, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+    this.lineTo(x + w, y + h - r.br);
+    this.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+    this.lineTo(x + r.bl, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+    this.lineTo(x, y + r.tl);
+    this.quadraticCurveTo(x, y, x + r.tl, y);
+    this.closePath();
+    return this;
+  };
+}
+
 const cv=document.getElementById('c'),g=cv.getContext('2d');
 const COL=['#ff3d9a','#19e3ff','#b6ff3c','#ffc83d'];
 let W,H,dpr;
@@ -149,8 +169,8 @@ async function goFull(land,quiet){
  const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;
  if(!rq){if(!quiet)fsMsg('This browser does not offer fullscreen to web pages.');return}
  try{if(!document.fullscreenElement&&!document.webkitFullscreenElement)await rq.call(el)}
- catch(e){if(!quiet)fsMsg('Fullscreen was blocked here. Try opening the page on its own in your browser, outside the Claude page, or use the browser menu: Add to Home screen.');return}
- if(land){try{await screen.orientation.lock('landscape')}catch(e){if(!quiet)fsMsg('Fullscreen works, but this browser would not lock the rotation. Turn on auto-rotate and turn your phone sideways.')}}
+ catch(e){if(!quiet)fsMsg('Fullscreen was blocked here. On Android the APK already runs fullscreen+landscape via config.xml.');return}
+ if(land){try{await screen.orientation.lock('landscape')}catch(e){if(!quiet)fsMsg('Fullscreen works, but this browser would not lock the rotation.')}}
  setTimeout(size,300);
 }
 function fsUI(){fsBtn.textContent='Fullscreen on play: '+(S.fs?'ON':'OFF');landBtn.textContent='Lock landscape on play: '+(S.land?'ON':'OFF')}
@@ -227,7 +247,6 @@ const stripDiff=b=>b.replace(/[-_. ](easy|normal|hard|erect|nightmare)$/i,'');
 const dRank=b=>/[-_. ]hard$/.test(b)?9:/[-_. ]normal$/.test(b)?2:/[-_. ]easy$/.test(b)?1:2.6;
 const nk=x=>x.toLowerCase().replace(/[^a-z0-9]/g,'');
 const inDir=(f,d)=>relParts(f).slice(0,-1).some(x=>x.toLowerCase()===d);
-// strict: charts only from a "data" folder, audio only from a "songs" folder
 async function findAll(files,strict){
  const all=[...files],folders=new Map(),by=new Map(),out=[];
  for(const f of all){
@@ -256,7 +275,7 @@ async function findAll(files,strict){
 const libMsg=t=>{document.getElementById('libMsg').textContent=t};
 function renderLib(){
  const box=document.getElementById('lib');box.innerHTML='';
- if(!lib.length){const p=document.createElement('p');p.textContent='No songs yet. Tap Search folder above and pick your mod folder.';box.appendChild(p);return}
+ if(!lib.length){const p=document.createElement('p');p.textContent='No songs yet. Tap Search folder above, or bundle songs in www/songs/.';box.appendChild(p);return}
  lib.forEach((sg,k)=>{
   const c=document.createElement('div');c.className='card';c.style.setProperty('--c',COL[k%4]);
   c.innerHTML='<h2></h2><div class="meta"></div><button data-p>Play</button><button class="alt" data-d>Remove</button>';
@@ -272,7 +291,7 @@ document.getElementById('folderIn').onchange=async e=>{
  const files=[...e.target.files];e.target.value='';if(!files.length)return;
  libMsg('Searching '+files.length+' files…');
  let found=await findAll(files,true);if(!found.length)found=await findAll(files,false);
- if(!found.length){{const au=files.filter(f=>AUD.test(fname(f))).length,js=files.filter(f=>/\.json$/i.test(fname(f))).length;libMsg(`Nothing found. Saw ${files.length} files (${js} json, ${au} audio). Example path: ${relParts(files[0]).join('/')}.${found.matched?' Matched '+found.matched+' chart name(s) but could not read notes from them.':''}`)}return}
+ if(!found.length){{const au=files.filter(f=>AUD.test(fname(f))).length,js=files.filter(f=>/\.json$/i.test(fname(f))).length;libMsg(`Nothing found. Saw ${files.length} files (${js} json, ${au} audio). Example path: ${relParts(files[0]).join('/')}.${found.matched?' Matched '+found.matched+' chart name(s) but could not read notes from them.':''} If folder selection was blocked by Android, use "Load a save file" or bundle songs in www/songs/.`)}return}
  let n=0,ok=0;
  for(const f of found){
   libMsg('Adding '+(++n)+' of '+found.length+': '+f.e.name);
@@ -289,6 +308,46 @@ document.getElementById('folderIn').onchange=async e=>{
 settingsUI();
 
 let actx;function AC(){return actx||(actx=new(window.AudioContext||window.webkitAudioContext)())}
+
+// ── APK FIX: bundled songs preloader ──
+// Optional. If www/songs/index.json exists it is auto-loaded on boot.
+// index.json format: [{"folder":"MySong","name":"My Song","chart":"MySong-hard.json","audio":"ogg","diff":"hard"}]
+async function preloadBundled(){
+  try{
+    const r = await fetch('songs/index.json', {cache:'no-store'});
+    if(!r.ok) return;
+    const idx = await r.json();
+    if(!Array.isArray(idx)) return;
+    let added = 0;
+    for(const s of idx){
+      try{
+        const folder = s.folder || s.name;
+        const chartName = s.chart || (folder + '-hard.json');
+        const audioExt = s.audio || 'ogg';
+        const j = await (await fetch(`songs/${folder}/${chartName}`)).json();
+        const notes = parseChart(j);
+        if(!notes.length) continue;
+        const inst = await (await fetch(`songs/${folder}/Inst.${audioExt}`)).arrayBuffer();
+        let vab = null;
+        try{ vab = await (await fetch(`songs/${folder}/Voices.${audioExt}`)).arrayBuffer(); }catch(e){}
+        const jj = (j && j.song && typeof j.song === 'object') ? j.song : j;
+        const sg = {
+          id: folder.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
+          name: (s.name || folder).slice(0,28),
+          bpm: Math.round(+jj.bpm) || 120,
+          diff: s.diff || '',
+          notes, ab: inst, vab
+        };
+        const k = lib.findIndex(x => x.id === sg.id);
+        if(k >= 0) lib[k] = sg; else lib.push(sg);
+        await libPut(sg);
+        added++;
+      }catch(e){ console.warn('bundled song failed:', s, e); }
+    }
+    if(added){ await libSaveAll(); renderLib(); }
+  }catch(e){ /* no bundle, fine */ }
+}
+
 (async()=>{
  try{const s=await DB.get('settings');if(s)Object.assign(S,s);settingsUI()}catch(e){}
  try{
@@ -303,6 +362,7 @@ let actx;function AC(){return actx||(actx=new(window.AudioContext||window.webkit
  }catch(e){}
  try{const ids=(await DB.get(LK))||[];for(const id of ids){const d=await DB.get('song_'+id);if(d)lib.push(d)}}catch(e){}
  for(let i=0;i<2;i++){try{const d=await DB.get('slot'+i);if(d&&d.ab&&d.chart&&!lib.find(x=>x.name===d.name)){const sg={id:'old'+i,name:d.name||'Song',bpm:d.bpm||120,diff:'',notes:d.chart,ab:d.ab,vab:d.vab||null};lib.push(sg);await libPut(sg)}}catch(e){}}
+ await preloadBundled();   // ── APK FIX: bundled songs ──
  renderLib();
  restored=true;
 })();
@@ -312,6 +372,7 @@ const bkStatus=document.getElementById('bkStatus');
 function abToB64(ab){const b=new Uint8Array(ab);let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s)}
 function b64ToAb(b64){const s=atob(b64),b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b.buffer}
 
+// ── APK FIX: save handler that works in Cordova WebView (file plugin + share) ──
 document.getElementById('saveBk').onclick=async()=>{
  try{
   bkStatus.textContent='Packing…';
@@ -320,7 +381,40 @@ document.getElementById('saveBk').onclick=async()=>{
    bf:{img:assets.bf.img?assets.bf.img.src:null,xml:assets.bf.xmlRaw},
    opp:{img:assets.opp.img?assets.opp.img.src:null,xml:assets.opp.xmlRaw},
    songs:lib.map(x=>({id:x.id,name:x.name,bpm:x.bpm,diff:x.diff,notes:x.notes,ab:abToB64(x.ab),vab:x.vab?abToB64(x.vab):null}))};
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const json=JSON.stringify(data);
+  const blob=new Blob([json],{type:'application/json'});
+
+  // --- Cordova / Android WebView path ---
+  if(window.cordova && window.resolveLocalFileSystemURL && window.cordova.file){
+   try{
+    const url=await new Promise((resolve,reject)=>{
+     window.resolveLocalFileSystemURL(window.cordova.file.dataDirectory,dir=>{
+      dir.getFile('beatrush-save.json',{create:true},fe=>{
+       fe.createWriter(w=>{
+        w.onwriteend=()=>resolve(fe.toURL());
+        w.onerror=reject;
+        w.write(blob);
+       },reject);
+      },reject);
+     },reject);
+    });
+    if(window.plugins && window.plugins.socialsharing){
+     try{
+      await new Promise((res,rej)=>{
+       window.plugins.socialsharing.share('Beat Rush save file','Beat Rush backup',url,null,res,rej);
+      });
+      bkStatus.textContent='Saved ✓ (shared)';
+     }catch(e){ bkStatus.textContent='Saved to: '+url; }
+    }else{
+     bkStatus.textContent='Saved to: '+url;
+    }
+    return;
+   }catch(err){
+    console.warn('Cordova save failed, falling back',err);
+   }
+  }
+
+  // --- Browser / PWA path ---
   const file=new File([blob],'beatrush-save.json',{type:'application/json'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){
    try{await navigator.share({files:[file],title:'Beat Rush save'});bkStatus.textContent='Saved ✓ (pick Save to Files)';return}
@@ -329,7 +423,7 @@ document.getElementById('saveBk').onclick=async()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='beatrush-save.json';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),10000);
-  bkStatus.textContent='Saved ✓ beatrush-save.json (check your Downloads)';
+  bkStatus.textContent='Saved ✓ beatrush-save.json (check Downloads)';
  }catch(err){bkStatus.textContent='Could not save: '+err.message}
 };
 
@@ -490,7 +584,6 @@ function loop(){
  for(let l=0;l<4;l++)arrow(laneX(l),hy,r,ROT[l],null,COL[l]+'99');
  for(let l=0;l<4;l++){arrow(oppX(l),hy,orr,ROT[l],st.oflash[l]>.1?'#5a4a99':null,'#6a5aa9');st.oflash[l]*=.85}
 
- // bot / AI player
  if(bot===1&&n>-.3){
   for(const o of st.notes){if(o.done||o.opp)continue;if(o.t>n)break;autoHit(o)}
   st.hp=Math.max(st.hp,.25);
@@ -600,6 +693,14 @@ document.getElementById('quit').onclick=()=>{
 };
 addEventListener('keydown',e=>{if((e.key==='Escape'||e.key==='p')&&st&&!st.ended&&!st.paused)pauseGame()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&st&&!st.ended&&!st.paused&&bot!==1)pauseGame()});
+
+// ── APK FIX: Cordova lifecycle pause/resume ──
+document.addEventListener('pause',()=>{
+ if(st&&!st.ended&&!st.paused&&bot!==1)pauseGame();
+});
+document.addEventListener('resume',()=>{
+ setTimeout(size,250);
+});
 
 /* ---- Input ---- */
 function laneAt(x){const lw=LANE_W(),sx=PX0();return Math.max(0,Math.min(3,Math.floor((x-sx)/lw)))}
